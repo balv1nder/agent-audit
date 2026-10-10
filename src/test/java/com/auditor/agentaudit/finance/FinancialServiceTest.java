@@ -34,4 +34,24 @@ class FinancialServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Portfolio Z");
     }
+
+    @Test
+    void decidesWhichPortfolioHasTheHigherVaR() {
+        // Portfolio A = 12.0, Portfolio B = 14.0 on this date.
+        VaRComparison comparison = service.compareVaR("Portfolio A", "Portfolio B", TUESDAY);
+
+        assertThat(comparison.higherPortfolio()).isEqualTo("Portfolio B");
+        assertThat(comparison.lowerPortfolio()).isEqualTo("Portfolio A");
+        assertThat(comparison.differenceInMillions()).isEqualByComparingTo("2.0");
+        assertThat(comparison.equal()).isFalse();
+    }
+
+    @Test
+    void decidesTheSameWayRegardlessOfArgumentOrder() {
+        VaRComparison forward = service.compareVaR("Portfolio A", "Portfolio B", TUESDAY);
+        VaRComparison reversed = service.compareVaR("Portfolio B", "Portfolio A", TUESDAY);
+
+        assertThat(forward.higherPortfolio()).isEqualTo(reversed.higherPortfolio());
+        assertThat(forward.differenceInMillions()).isEqualByComparingTo(reversed.differenceInMillions());
+    }
 }

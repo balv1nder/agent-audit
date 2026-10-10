@@ -66,4 +66,32 @@ public class FinancialService {
                 percentageChange
         );
     }
+
+    /**
+     * Ranks two portfolios by VaR on the same date.
+     *
+     * <p>The comparison itself is done here, in deterministic Java, and the
+     * winner is returned as an explicit field. A caller never has to work out
+     * which figure is larger.
+     */
+    public VaRComparison compareVaR(String firstPortfolio, String secondPortfolio, LocalDate date) {
+        BigDecimal firstVar = getVaR(firstPortfolio, date);
+        BigDecimal secondVar = getVaR(secondPortfolio, date);
+
+        int comparison = firstVar.compareTo(secondVar);
+        boolean equal = comparison == 0;
+
+        String higher = equal ? null : (comparison > 0 ? firstPortfolio : secondPortfolio);
+        String lower = equal ? null : (comparison > 0 ? secondPortfolio : firstPortfolio);
+        BigDecimal difference = firstVar.subtract(secondVar).abs();
+
+        log.debug("[FinancialService::compareVaR]::date={} {}={} {}={} higher={}",
+                date, firstPortfolio, firstVar, secondPortfolio, secondVar, higher);
+
+        return new VaRComparison(
+                date,
+                firstPortfolio, firstVar,
+                secondPortfolio, secondVar,
+                higher, lower, difference, equal);
+    }
 }

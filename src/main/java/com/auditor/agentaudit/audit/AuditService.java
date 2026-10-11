@@ -7,6 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
@@ -27,12 +30,14 @@ public class AuditService {
     private final AgentSessionRepository sessions;
     private final AuditEventRepository events;
     private final ObjectMapper objectMapper;
+    private final Tracer tracer;
 
     public AuditService(AgentSessionRepository sessions, AuditEventRepository events,
-                        ObjectMapper objectMapper) {
+                        ObjectMapper objectMapper, Tracer tracer) {
         this.sessions = sessions;
         this.events = events;
         this.objectMapper = objectMapper;
+        this.tracer = tracer;
     }
 
     /**
@@ -63,6 +68,7 @@ public class AuditService {
 
         AuditEvent event = new AuditEvent(
                 scope.sessionId(), scope.nextSequence(), type, detail, toJson(payload));
+        correlateWithTrace(event);
         events.save(event);
 
         log.debug("[AuditService::record]::sessionId={} seq={} type={} detail={}",
@@ -108,6 +114,24 @@ public class AuditService {
 
         log.error("[AuditService::failSession]::sessionId={} failed with exception: {}",
                 scope.sessionId(), reason);
+    }
+
+    /**
+     * Stamps the event with the OpenTelemetry trace and span it happened in.
+     *
+     * <p>This is the bridge between the two records. The audit event is kept
+     * for years; the trace is sampled and expires. While both exist, these ids
+     * let a reviewer move from "what the agent did" to "how long it took and
+     * what it called", and afterwards the audit event still stands on its own.
+     */
+    private void correlateWithTrace(AuditEvent event) {
+        Span span = tracer.currentSpan(); //which span am I in
+
+        if (span == null) { //no tracing active
+            return;
+        }
+
+        event.correlate(span.context().traceId(), span.context().spanId());
     }
 
     /**

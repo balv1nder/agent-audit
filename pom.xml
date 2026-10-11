@@ -70,6 +70,32 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+          OpenTelemetry via Micrometer Tracing. Versions come from the Spring
+          Boot BOM (micrometer-tracing 1.7.1, opentelemetry 1.62.0).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
+        </dependency>
+
+        <!-- The Micrometer Tracer implementation backed by OpenTelemetry. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing-bridge-otel</artifactId>
+        </dependency>
+
+        <!--
+          Spans are printed to the console. A real deployment would export to
+          a collector (Jaeger, Tempo, an OTLP endpoint); the logging exporter
+          keeps the demo free of extra infrastructure while showing exactly
+          what would be sent.
+        -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-logging</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

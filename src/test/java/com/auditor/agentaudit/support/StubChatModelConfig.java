@@ -1,5 +1,7 @@
 package com.auditor.agentaudit.support;
 
+import io.micrometer.tracing.Tracer;
+
 import org.mockito.Mockito;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -21,5 +23,17 @@ public class StubChatModelConfig {
     @Primary
     ChatModel stubChatModel() {
         return Mockito.mock(ChatModel.class);
+    }
+
+    /**
+     * Spring Boot switches tracing auto-configuration off in test contexts, so
+     * no Tracer bean exists. A no-op satisfies the dependency; audit events
+     * written in tests simply carry no trace ids, which is correct -- there is
+     * no trace to point at.
+     */
+    @Bean
+    @Primary
+    Tracer noOpTracer() {
+        return Tracer.NOOP;
     }
 }

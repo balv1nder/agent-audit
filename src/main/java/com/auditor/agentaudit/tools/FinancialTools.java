@@ -11,6 +11,9 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.Tracer;
+
 import com.auditor.agentaudit.audit.AuditEventType;
 import com.auditor.agentaudit.audit.AuditService;
 import com.auditor.agentaudit.finance.FinancialService;
@@ -44,12 +47,14 @@ public class FinancialTools {
     private final FinancialService financialService;
     private final MockFinancialData dataSource;
     private final AuditService auditService;
+    private final Tracer tracer;
 
     public FinancialTools(FinancialService financialService, MockFinancialData dataSource,
-                          AuditService auditService) {
+                          AuditService auditService, Tracer tracer) {
         this.financialService = financialService;
         this.dataSource = dataSource;
         this.auditService = auditService;
+        this.tracer = tracer;
     }
 
     /**
@@ -64,16 +69,27 @@ public class FinancialTools {
      * proxy is not guaranteed, so the call is made plainly instead.
      */
     private String audited(String toolName, Map<String, ?> arguments, Supplier<String> work) {
-        auditService.record(AuditEventType.TOOL_CALL, toolName, arguments);
-        try {
+        // One span per tool call, so the trace shows the same steps as the
+        // audit record and the two can be read side by side.
+        Span span = tracer.nextSpan().name("tool." + toolName).start();
+
+        try (Tracer.SpanInScope scope = tracer.withSpan(span)) {
+            auditService.record(AuditEventType.TOOL_CALL, toolName, arguments);
+
             String result = work.get();
+
             auditService.record(AuditEventType.TOOL_RESULT, toolName, Map.of("result", result));
             return result;
+
         } catch (RuntimeException e) {
+            span.error(e);
             auditService.record(AuditEventType.TOOL_ERROR, toolName, Map.of(
                     "exception", e.getClass().getSimpleName(),
                     "message", String.valueOf(e.getMessage())));
             throw e;
+
+        } finally {
+            span.end();
         }
     }
 

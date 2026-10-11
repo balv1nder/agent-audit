@@ -2,6 +2,9 @@ package com.auditor.agentaudit.audit;
 
 import java.time.Instant;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -50,7 +53,7 @@ public class AuditEvent {
     @Column(length = 100)
     private String detail;
 
-    @Column(length = 8000)
+    @JdbcTypeCode(SqlTypes.JSON)
     private String payload;
 
     @Column(nullable = false)

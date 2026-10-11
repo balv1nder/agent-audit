@@ -3,7 +3,6 @@ package com.auditor.agentaudit.config;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
 import com.auditor.agentaudit.tools.FinancialTools;
 
@@ -15,7 +14,6 @@ import com.auditor.agentaudit.tools.FinancialTools;
  * is allowed to call.
  */
 @Configuration
-@Profile("llm")
 public class ChatClientConfig {
 
     /**

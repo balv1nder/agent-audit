@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### audit store (local H2 files)
+/data/

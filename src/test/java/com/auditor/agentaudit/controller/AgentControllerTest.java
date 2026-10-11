@@ -28,14 +28,15 @@ class AgentControllerTest {
     @Test
     void returnsTheAgentAnswer() throws Exception {
         BDDMockito.given(agent.answer("session-001", "Why did Portfolio A's VaR increase?"))
-                .willReturn(new AgentAnswer("session-001", "Why did Portfolio A's VaR increase?", "It rose by EUR 3M."));
+                .willReturn(new AgentAnswer("audit-1", "session-001", "Why did Portfolio A's VaR increase?", "It rose by EUR 3M."));
 
         mockMvc.perform(post("/api/agent/ask")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"sessionId":"session-001","question":"Why did Portfolio A's VaR increase?"}"""))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer").value("It rose by EUR 3M."));
+                .andExpect(jsonPath("$.answer").value("It rose by EUR 3M."))
+                .andExpect(jsonPath("$.auditSessionId").value("audit-1"));
     }
 
     @Test

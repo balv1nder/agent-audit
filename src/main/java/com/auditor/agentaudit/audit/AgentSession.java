@@ -85,5 +85,4 @@ public class AgentSession {
         this.status = SessionStatus.FAILED;
         this.completedAt = Instant.now();
     }
-
 }

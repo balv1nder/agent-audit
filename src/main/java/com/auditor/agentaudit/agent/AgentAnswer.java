@@ -3,11 +3,13 @@ package com.auditor.agentaudit.agent;
 /**
  * What the agent returns for a single question.
  *
- * <p>Note how little is in here: a session id, the question, the answer. That is
- * deliberate -- it is exactly the "final answer only" view that an auditor cannot
- * work with. The audit trail we build in a later phase is what fills the gap.
+ * <p>{@code auditSessionId} is the link from the answer to its evidence: pass
+ * it to {@code GET /api/audit/sessions/{id}} to see what the agent actually
+ * did. Without it the answer would be exactly the unverifiable artefact this
+ * project exists to argue against.
  */
 public record AgentAnswer(
+        String auditSessionId,
         String sessionId,
         String question,
         String answer

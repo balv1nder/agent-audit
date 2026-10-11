@@ -4,11 +4,15 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import com.auditor.agentaudit.audit.AuditEventType;
+import com.auditor.agentaudit.audit.AuditService;
 import com.auditor.agentaudit.finance.FinancialService;
 import com.auditor.agentaudit.finance.MockFinancialData;
 import com.auditor.agentaudit.finance.VaRChange;
@@ -39,10 +43,38 @@ public class FinancialTools {
 
     private final FinancialService financialService;
     private final MockFinancialData dataSource;
+    private final AuditService auditService;
 
-    public FinancialTools(FinancialService financialService, MockFinancialData dataSource) {
+    public FinancialTools(FinancialService financialService, MockFinancialData dataSource,
+                          AuditService auditService) {
         this.financialService = financialService;
         this.dataSource = dataSource;
+        this.auditService = auditService;
+    }
+
+    /**
+     * Records a tool invocation and its outcome around the actual work.
+     *
+     * <p>Every tool goes through here, so the arguments the model supplied and
+     * the value returned are preserved for each call -- including when the call
+     * throws, which is the case a reviewer most needs to see.
+     *
+     * <p>A Spring AOP aspect would remove the explicit wrapping, but tools are
+     * resolved by reflection over this bean and annotation visibility through a
+     * proxy is not guaranteed, so the call is made plainly instead.
+     */
+    private String audited(String toolName, Map<String, ?> arguments, Supplier<String> work) {
+        auditService.record(AuditEventType.TOOL_CALL, toolName, arguments);
+        try {
+            String result = work.get();
+            auditService.record(AuditEventType.TOOL_RESULT, toolName, Map.of("result", result));
+            return result;
+        } catch (RuntimeException e) {
+            auditService.record(AuditEventType.TOOL_ERROR, toolName, Map.of(
+                    "exception", e.getClass().getSimpleName(),
+                    "message", String.valueOf(e.getMessage())));
+            throw e;
+        }
     }
 
     @Tool(description = """
@@ -56,11 +88,12 @@ public class FinancialTools {
 
         log.info("[FinancialTools::getVaR]::model requested tool call portfolio={} date={}", portfolio, date);
 
-        BigDecimal var = financialService.getVaR(portfolio, parseDate(date, "date"));
-
-        String result = "VaR for %s on %s is EUR %sM".formatted(portfolio, date, var);
-        log.info("[FinancialTools::getVaR]::returning to model result={}", result);
-        return result;
+        return audited("getVaR", Map.of("portfolio", portfolio, "date", date), () -> {
+            BigDecimal var = financialService.getVaR(portfolio, parseDate(date, "date"));
+            String result = "VaR for %s on %s is EUR %sM".formatted(portfolio, date, var);
+            log.info("[FinancialTools::getVaR]::returning to model result={}", result);
+            return result;
+        });
     }
 
     @Tool(description = """
@@ -77,6 +110,9 @@ public class FinancialTools {
         log.info("[FinancialTools::getVaRChange]::model requested tool call portfolio={} from={} to={}",
                 portfolio, previousDate, currentDate);
 
+        return audited("getVaRChange",
+                Map.of("portfolio", portfolio, "previousDate", previousDate, "currentDate", currentDate),
+                () -> {
         VaRChange change = financialService.getVaRChange(
                 portfolio,
                 parseDate(previousDate, "previousDate"),
@@ -91,6 +127,7 @@ public class FinancialTools {
 
         log.info("[FinancialTools::getVaRChange]::returning to model result={}", result);
         return result;
+        });
     }
 
     /**
@@ -103,7 +140,7 @@ public class FinancialTools {
      * of reporting it. A ranking of two risk figures has exactly one right
      * answer and no need for paraphrase, so the model is taken out of the loop.
      */
-    @Tool(returnDirect = true, description = """
+    @Tool(returnDirect = true, resultConverter = PlainTextResultConverter.class, description = """
             Compares the Value at Risk (VaR) of two portfolios on the same date and
             states which one is higher. Use this whenever the user asks which
             portfolio is riskier, higher, lower, larger or smaller, or asks you to
@@ -119,6 +156,9 @@ public class FinancialTools {
         log.info("[FinancialTools::compareVaR]::model requested tool call first={} second={} date={}",
                 firstPortfolio, secondPortfolio, date);
 
+        return audited("compareVaR",
+                Map.of("firstPortfolio", firstPortfolio, "secondPortfolio", secondPortfolio, "date", date),
+                () -> {
         VaRComparison comparison = financialService.compareVaR(
                 firstPortfolio, secondPortfolio, parseDate(date, "date"));
 
@@ -139,6 +179,7 @@ public class FinancialTools {
 
         log.info("[FinancialTools::compareVaR]::returning to model result={}", result);
         return result;
+        });
     }
 
     @Tool(description = """
@@ -149,6 +190,7 @@ public class FinancialTools {
     public String listAvailableData() {
         log.info("[FinancialTools::listAvailableData]::model requested tool call");
 
+        return audited("listAvailableData", Map.of(), () -> {
         List<VaRRecord> records = dataSource.getAllRecords();
         StringBuilder sb = new StringBuilder("Available VaR data:");
         for (VaRRecord record : records) {
@@ -159,6 +201,7 @@ public class FinancialTools {
         String result = sb.toString();
         log.info("[FinancialTools::listAvailableData]::returning {} records to model", records.size());
         return result;
+        });
     }
 
     /**

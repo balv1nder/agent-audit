@@ -81,5 +81,4 @@ public class AuditEvent {
         this.traceId = traceId;
         this.spanId = spanId;
     }
-
 }
